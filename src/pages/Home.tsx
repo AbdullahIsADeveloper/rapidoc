@@ -97,7 +97,7 @@ export default function Home() {
   };
 
   const handleDocumentClick = (docId: string) => {
-    console.log("Opening document:", docId);
+    navigate("/documents")
   };
 
   const handleSearch = (query: string) => {

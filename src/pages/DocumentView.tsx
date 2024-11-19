@@ -1,7 +1,7 @@
-import React from 'react'
+import RichTextEditor from "@/components/ui/RichTextEditor";
+import { useState } from "react";
 
 export default function DocumentView() {
-  return (
-    <div>DocumentView</div>
-  )
+  const [content, setContent] = useState("");
+  return <RichTextEditor content={content} onChange={setContent} />;
 }

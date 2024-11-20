@@ -2,14 +2,7 @@ import { Button } from "@/components/ui/button";
 import { getAuth, signOut } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import {
-  LayoutGrid,
-  List,
-  Plus,
-  Settings,
-  Loader2,
-  X,
-} from "lucide-react";
+import { LayoutGrid, List, Plus, Settings, Loader2, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -21,29 +14,34 @@ import { cn } from "@/lib/utils";
 import { createDocument, getDocuments } from "@/firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
 
+interface Document {
+  id: string;
+  name: string;
+  content: string;
+  collaborators: Array<{ id: string; permission: string }>;
+  lastModified: string;
+}
+
+interface DocumentCardProps {
+  document: Document;
+}
+
 export default function Home() {
   const firebaseAuth = getAuth();
   const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
-  const [documents, setDocuments] = useState<
-    Array<{
-      id: string;
-      name: string;
-      content: string;
-      collaborators: Array<{ id: string; permission: string }>;
-      lastModified: string;
-    }>
-  >([]);
+  const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showNewDocumentForm, setShowNewDocumentForm] = useState(false);
   const [newDocumentName, setNewDocumentName] = useState("");
 
-  const currentUser = firebaseAuth.currentUser!;
+  const currentUser = firebaseAuth.currentUser;
 
   useEffect(() => {
-    if (!firebaseAuth.currentUser) {
+    if (!currentUser) {
       setIsAuthenticated(false);
       navigate("/", { replace: true });
       return;
@@ -53,7 +51,9 @@ export default function Home() {
       try {
         const fetchedDocuments = await getDocuments();
         setDocuments(fetchedDocuments || []);
+        setError(null);
       } catch (error) {
+        setError("Error fetching documents. Please try again.");
         console.error("Error fetching documents:", error);
       } finally {
         setLoading(false);
@@ -61,44 +61,49 @@ export default function Home() {
     };
 
     fetchDocuments();
-  }, [firebaseAuth, navigate]);
+  }, [currentUser, navigate]);
 
-  const handleSignOut = () => {
-    signOut(firebaseAuth)
-      .then(() => {
-        console.log("User signed out successfully.");
-        navigate("/", { replace: true });
-      })
-      .catch((error) => {
-        console.error("Error signing out: ", error);
-      });
+  const handleSignOut = async () => {
+    try {
+      await signOut(firebaseAuth);
+      navigate("/", { replace: true });
+    } catch (error) {
+      console.error("Error signing out: ", error);
+      setError("Failed to sign out. Please try again.");
+    }
   };
 
   const handleCreateDocument = () => {
     setShowNewDocumentForm(true);
   };
 
-  const handleSubmitNewDocument = (e: React.FormEvent) => {
+  const handleSubmitNewDocument = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newDocumentName.trim()) {
-      const newDocument = {
+    if (!newDocumentName.trim()) return;
+
+    try {
+      const newDocument: Document = {
         id: Math.random().toString(36).substr(2, 9),
         name: newDocumentName.trim(),
         content: "",
         collaborators: [],
         lastModified: new Date().toISOString(),
       };
-      createDocument(newDocument);
+
+      await createDocument(newDocument);
+      setDocuments([...documents, newDocument]);
       setNewDocumentName("");
       setShowNewDocumentForm(false);
-
-      documents.push(newDocument);
+      setError(null);
+    } catch (error) {
+      console.error("Error creating document:", error);
+      setError("Failed to create document. Please try again.");
     }
   };
 
-  const handleDocumentClick = (docId: string) => {
-    navigate("/documents")
-  };
+  // const handleDocumentClick = (docId: string) => {
+  //   navigate(`/document/${docId}`);
+  // };
 
   const handleSearch = (query: string) => {
     setSearchQuery(query.toLowerCase());
@@ -114,12 +119,12 @@ export default function Home() {
     console.log("Opening settings");
   };
 
-  const getFirstLine = (content: string) => {
+  const getFirstLine = (content: string): string => {
     const firstLine = content.split("\n")[0];
     return firstLine.length > 100 ? `${firstLine.slice(0, 100)}...` : firstLine;
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string): string => {
     return new Date(dateString).toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -127,8 +132,43 @@ export default function Home() {
     });
   };
 
+  const DocumentCard: React.FC<DocumentCardProps> = ({ document }) => {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        onClick={() => navigate(`/document/${document.id}`)}
+        className={cn(
+          "group relative cursor-pointer rounded-lg border p-4 transition-all hover:border-foreground/50",
+          viewMode === "list" ? "flex items-center justify-between" : ""
+        )}
+      >
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="font-medium truncate">{document.name}</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              {formatDate(document.lastModified)}
+            </p>
+          </div>
+        </div>
+        <p className="text-sm text-muted-foreground mt-4 line-clamp-1">
+          {getFirstLine(document.content)}
+        </p>
+      </motion.div>
+    );
+  };
+
   if (!isAuthenticated) {
     return null;
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-6 h-6 animate-spin" />
+      </div>
+    );
   }
 
   return (
@@ -158,7 +198,7 @@ export default function Home() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="gap-2">
                   <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                    {currentUser.displayName?.[0].toUpperCase() || "U"}
+                    {currentUser?.displayName?.[0].toUpperCase() || "U"}
                   </div>
                 </Button>
               </DropdownMenuTrigger>
@@ -177,7 +217,7 @@ export default function Home() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-semibold">
-              Welcome back, {currentUser.displayName?.split(" ")[0]}
+              Welcome back, {currentUser?.displayName?.split(" ")[0]}
             </h1>
             <p className="text-muted-foreground mt-1">
               Create, edit, and collaborate on your documents
@@ -209,9 +249,9 @@ export default function Home() {
           </div>
         </div>
 
-        {loading ? (
-          <div className="flex justify-center items-center min-h-[200px]">
-            <Loader2 className="w-12 h-12 text-gray-400 animate-spin" />
+        {error ? (
+          <div className="text-center text-red-500 py-8">
+            <p>{error}</p>
           </div>
         ) : filteredDocuments.length === 0 ? (
           <div className="text-center text-gray-500 py-8">
@@ -220,47 +260,13 @@ export default function Home() {
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredDocuments.map((doc) => (
-              <div
-                key={doc.id}
-                onClick={() => handleDocumentClick(doc.id)}
-                className="group border rounded-lg p-4 cursor-pointer relative overflow-hidden transition-all duration-300 hover:border-blue-200 before:absolute before:inset-0 before:bg-gradient-to-r before:from-transparent before:via-blue-50/30 before:to-transparent before:translate-x-[-200%] before:transition-transform before:duration-500 hover:before:translate-x-[200%]"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-medium truncate">{doc.name}</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {formatDate(doc.lastModified)}
-                    </p>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground mt-4 line-clamp-1">
-                  {getFirstLine(doc.content)}
-                </p>
-              </div>
+              <DocumentCard key={doc.id} document={doc} />
             ))}
           </div>
         ) : (
           <div className="border rounded-lg divide-y">
             {filteredDocuments.map((doc) => (
-              <div
-                key={doc.id}
-                onClick={() => handleDocumentClick(doc.id)}
-                className="flex items-center justify-between p-4 cursor-pointer relative overflow-hidden transition-all duration-300 hover:bg-gradient-to-r hover:from-transparent hover:via-blue-50/30 hover:to-transparent"
-              >
-                <div className="flex-1">
-                  <h3 className="font-medium">{doc.name}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {formatDate(doc.lastModified)}
-                  </p>
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {doc.collaborators.length > 0
-                    ? `${doc.collaborators.length} collaborator${
-                        doc.collaborators.length === 1 ? "" : "s"
-                      }`
-                    : "No collaborators"}
-                </div>
-              </div>
+              <DocumentCard key={doc.id} document={doc} />
             ))}
           </div>
         )}

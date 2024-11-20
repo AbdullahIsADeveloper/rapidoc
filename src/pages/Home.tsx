@@ -18,6 +18,7 @@ interface Document {
   id: string;
   name: string;
   content: string;
+  ownerId: string;
   collaborators: Array<{ id: string; permission: string }>;
   lastModified: string;
 }
@@ -86,7 +87,8 @@ export default function Home() {
         id: Math.random().toString(36).substr(2, 9),
         name: newDocumentName.trim(),
         content: "",
-        collaborators: [],
+        ownerId: currentUser?.uid || "", // Assign the current user as the owner
+        collaborators: [], // Start with no collaborators
         lastModified: new Date().toISOString(),
       };
 
@@ -100,10 +102,6 @@ export default function Home() {
       setError("Failed to create document. Please try again.");
     }
   };
-
-  // const handleDocumentClick = (docId: string) => {
-  //   navigate(`/document/${docId}`);
-  // };
 
   const handleSearch = (query: string) => {
     setSearchQuery(query.toLowerCase());

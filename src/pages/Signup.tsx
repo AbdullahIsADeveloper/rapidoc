@@ -9,7 +9,6 @@ import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { createUser, doSignInWithGoogle } from '@/firebase/auth';
 import { useAuth } from '@/contexts/authContext';
-import { createUserFirestore } from '@/firebase/firestore';
 
 interface AuthError {
   code: string;
@@ -50,7 +49,6 @@ const Signup: FC = () => {
       const { email, password, fullName } = credentials;
       if (email && password) {
         const user = await createUser(email, password, fullName);
-        await createUserFirestore(user.user.uid)
         navigate('/home');
       }
     } catch (err) {
@@ -73,7 +71,6 @@ const Signup: FC = () => {
 
     try {
       const user = await doSignInWithGoogle();
-      await createUserFirestore(user.user.uid)
       navigate('/home');
     } catch (err) {
       console.error(err);

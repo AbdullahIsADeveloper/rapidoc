@@ -8,7 +8,6 @@ import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { doSignInWithEmailAndPassword, doSignInWithGoogle } from '@/firebase/auth';
 import { useAuth } from '@/contexts/authContext';
-import { createUserFirestore } from '@/firebase/firestore';
 
 interface AuthError {
   code: string;
@@ -58,8 +57,7 @@ const Login: FC = () => {
     setIsLoading(true);
 
     try {
-      const user = await doSignInWithGoogle();
-      await createUserFirestore(user.user.uid);
+      await doSignInWithGoogle();
       navigate('/home');
     } catch (err) {
       console.error(err);
